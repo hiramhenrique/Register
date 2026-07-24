@@ -3,8 +3,6 @@ import {
   getUserByEmail,
   subscribeToContractorServices,
   saveServiceItem,
-  uploadServicePhoto,
-  deleteServicePhoto,
   updateServiceStatus,
   updateUserPixKey,
   deleteServiceItem,
@@ -12,12 +10,32 @@ import {
   type ServiceItem,
 } from "../../firebase";
 
+// Comprime uma imagem para base64 com largura máxima e qualidade reduzida
+function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas não suportado")); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export default function TelaContratado() {
   const [nome, setNome] = useState("Cliente");
   const [servico, setServico] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
   const [fotoNome, setFotoNome] = useState("");
-  const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [valor, setValor] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -53,22 +71,25 @@ export default function TelaContratado() {
     return () => unsubscribe();
   }, []);
 
-  const handleFotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       setFotoNome("");
       setFotoUrl("");
-      setFotoFile(null);
       return;
     }
-    setFotoFile(file);
     setFotoNome(file.name);
-    // preview local apenas
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") setFotoUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setFotoUrl(compressed);
+    } catch {
+      // fallback sem compressão
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") setFotoUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleEnviar = async () => {
@@ -88,7 +109,7 @@ export default function TelaContratado() {
       const serviceData: Omit<ServiceItem, "id"> = {
         servico,
         fotoNome: fotoNome || "Sem foto",
-        fotoUrl: "",
+        fotoUrl,
         valor,
         createdAt: new Date().toLocaleString("pt-BR"),
         createdAtISO: new Date().toISOString(),
@@ -99,22 +120,12 @@ export default function TelaContratado() {
 
       if (editingId) {
         const existing = services.find((it) => it.id === editingId);
-        // se trocou a foto, faz upload da nova
-        let finalFotoUrl = existing?.fotoUrl || "";
-        let finalFotoNome = existing?.fotoNome || "Sem foto";
-        if (fotoFile) {
-          if (existing?.fotoNome && existing.fotoNome !== "Sem foto") {
-            await deleteServicePhoto(editingId, existing.fotoNome);
-          }
-          finalFotoUrl = await uploadServicePhoto(fotoFile, editingId);
-          finalFotoNome = fotoFile.name;
-        }
         const updatedService: ServiceItem = {
           id: editingId,
           servico: serviceData.servico,
           valor: serviceData.valor,
-          fotoNome: finalFotoNome,
-          fotoUrl: finalFotoUrl,
+          fotoNome: fotoUrl ? serviceData.fotoNome : (existing?.fotoNome || "Sem foto"),
+          fotoUrl: fotoUrl || existing?.fotoUrl || "",
           emailContratado: currentEmail,
           nomeContratado: nome,
           status: existing?.status || "aberto",
@@ -124,19 +135,12 @@ export default function TelaContratado() {
         await saveServiceItem(updatedService);
         setEditingId(null);
       } else {
-        // cria o documento primeiro para ter o ID
-        const id = await saveServiceItem(serviceData);
-        // depois faz upload da foto com o ID gerado
-        if (fotoFile) {
-          const uploadedUrl = await uploadServicePhoto(fotoFile, id);
-          await saveServiceItem({ ...serviceData, id, fotoUrl: uploadedUrl, fotoNome: fotoFile.name });
-        }
+        await saveServiceItem(serviceData);
       }
 
       setServico("");
       setFotoNome("");
       setFotoUrl("");
-      setFotoFile(null);
       setValor("");
       setActiveView("history");
     } catch (err) {
