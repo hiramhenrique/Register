@@ -27,6 +27,22 @@ const db = getFirestore(app)
 const usersCollection = collection(db, 'users')
 const servicesCollection = collection(db, 'services')
 
+const EXPIRATION_DAYS = 30
+
+function isExpired(service: ServiceItem): boolean {
+    const iso = service.createdAtISO
+    if (!iso) return false
+    const created = new Date(iso).getTime()
+    const now = Date.now()
+    return now - created > EXPIRATION_DAYS * 24 * 60 * 60 * 1000
+}
+
+async function purgeExpired(services: ServiceItem[]): Promise<ServiceItem[]> {
+    const expired = services.filter(isExpired)
+    await Promise.all(expired.map((s) => deleteDoc(doc(servicesCollection, s.id))))
+    return services.filter((s) => !isExpired(s))
+}
+
 export type User = {
     nome: string
     email: string
@@ -57,7 +73,7 @@ export function subscribeToAllServices(
             id: docSnap.id,
             ...(docSnap.data() as Omit<ServiceItem, 'id'>),
         }))
-        callback(services)
+        purgeExpired(services).then(callback)
     })
 }
 
@@ -71,7 +87,7 @@ export function subscribeToContractorServices(
             id: docSnap.id,
             ...(docSnap.data() as Omit<ServiceItem, 'id'>),
         }))
-        callback(services)
+        purgeExpired(services).then(callback)
     })
 }
 
