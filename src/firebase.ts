@@ -13,6 +13,7 @@ import {
     where,
     type Unsubscribe,
 } from 'firebase/firestore'
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 
 const firebaseConfig = {
     apiKey: 'AIzaSyA-XeKQMYFJEunJ_5SfW4JUQs1RxktvQa8',
@@ -25,8 +26,26 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 const db = getFirestore(app)
+const storage = getStorage(app)
 const usersCollection = collection(db, 'users')
 const servicesCollection = collection(db, 'services')
+
+export async function uploadServicePhoto(file: File, serviceId: string): Promise<string> {
+    const ext = file.name.split('.').pop() || 'jpg'
+    const storageRef = ref(storage, `services/${serviceId}.${ext}`)
+    await uploadBytes(storageRef, file)
+    return await getDownloadURL(storageRef)
+}
+
+export async function deleteServicePhoto(serviceId: string, fotoNome: string): Promise<void> {
+    try {
+        const ext = fotoNome.split('.').pop() || 'jpg'
+        const storageRef = ref(storage, `services/${serviceId}.${ext}`)
+        await deleteObject(storageRef)
+    } catch {
+        // ignora se foto não existir no storage
+    }
+}
 
 export type User = {
     nome: string

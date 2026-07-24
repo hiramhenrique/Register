@@ -3,6 +3,8 @@ import {
   getUserByEmail,
   subscribeToContractorServices,
   saveServiceItem,
+  uploadServicePhoto,
+  deleteServicePhoto,
   updateServiceStatus,
   updateUserPixKey,
   deleteServiceItem,
@@ -15,8 +17,10 @@ export default function TelaContratado() {
   const [servico, setServico] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
   const [fotoNome, setFotoNome] = useState("");
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [valor, setValor] = useState("");
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const [activeView, setActiveView] = useState<"add" | "history">("add");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -54,15 +58,15 @@ export default function TelaContratado() {
     if (!file) {
       setFotoNome("");
       setFotoUrl("");
+      setFotoFile(null);
       return;
     }
-
+    setFotoFile(file);
     setFotoNome(file.name);
+    // preview local apenas
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setFotoUrl(reader.result);
-      }
+      if (typeof reader.result === "string") setFotoUrl(reader.result);
     };
     reader.readAsDataURL(file);
   };
@@ -73,55 +77,74 @@ export default function TelaContratado() {
       setError("Preencha serviço e valor.");
       return;
     }
-
     const currentEmail = window.localStorage.getItem("currentUserEmail") || "";
     if (!currentEmail) {
       setError("Usuário não autenticado.");
       return;
     }
 
-    const serviceData: Omit<ServiceItem, "id"> = {
-      servico,
-      fotoNome: fotoNome || "Sem foto",
-      fotoUrl,
-      valor,
-      createdAt: new Date().toLocaleString("pt-BR"),
-      createdAtISO: new Date().toISOString(),
-      status: "aberto",
-      emailContratado: currentEmail,
-      nomeContratado: nome,
-    };
-
-    if (editingId) {
-      const existing = services.find((it) => it.id === editingId);
-      const updatedService = {
-        ...existing,
-        servico: serviceData.servico,
-        valor: serviceData.valor,
-        fotoNome: serviceData.fotoNome,
-        fotoUrl: serviceData.fotoUrl,
+    setSending(true);
+    try {
+      const serviceData: Omit<ServiceItem, "id"> = {
+        servico,
+        fotoNome: fotoNome || "Sem foto",
+        fotoUrl: "",
+        valor,
+        createdAt: new Date().toLocaleString("pt-BR"),
+        createdAtISO: new Date().toISOString(),
+        status: "aberto",
         emailContratado: currentEmail,
         nomeContratado: nome,
-        status: existing?.status || "aberto",
-        createdAt: existing?.createdAt || serviceData.createdAt,
-        createdAtISO: existing?.createdAtISO || serviceData.createdAtISO,
-      } as ServiceItem;
+      };
 
-      await saveServiceItem({ ...updatedService, id: editingId });
-      setServices((current) =>
-        current.map((it) => (it.id === editingId ? updatedService : it)),
-      );
-      setEditingId(null);
-    } else {
-      const id = await saveServiceItem(serviceData);
-      setServices((current) => [{ ...serviceData, id }, ...current]);
+      if (editingId) {
+        const existing = services.find((it) => it.id === editingId);
+        // se trocou a foto, faz upload da nova
+        let finalFotoUrl = existing?.fotoUrl || "";
+        let finalFotoNome = existing?.fotoNome || "Sem foto";
+        if (fotoFile) {
+          if (existing?.fotoNome && existing.fotoNome !== "Sem foto") {
+            await deleteServicePhoto(editingId, existing.fotoNome);
+          }
+          finalFotoUrl = await uploadServicePhoto(fotoFile, editingId);
+          finalFotoNome = fotoFile.name;
+        }
+        const updatedService: ServiceItem = {
+          id: editingId,
+          servico: serviceData.servico,
+          valor: serviceData.valor,
+          fotoNome: finalFotoNome,
+          fotoUrl: finalFotoUrl,
+          emailContratado: currentEmail,
+          nomeContratado: nome,
+          status: existing?.status || "aberto",
+          createdAt: existing?.createdAt || serviceData.createdAt,
+          createdAtISO: existing?.createdAtISO || serviceData.createdAtISO,
+        };
+        await saveServiceItem(updatedService);
+        setEditingId(null);
+      } else {
+        // cria o documento primeiro para ter o ID
+        const id = await saveServiceItem(serviceData);
+        // depois faz upload da foto com o ID gerado
+        if (fotoFile) {
+          const uploadedUrl = await uploadServicePhoto(fotoFile, id);
+          await saveServiceItem({ ...serviceData, id, fotoUrl: uploadedUrl, fotoNome: fotoFile.name });
+        }
+      }
+
+      setServico("");
+      setFotoNome("");
+      setFotoUrl("");
+      setFotoFile(null);
+      setValor("");
+      setActiveView("history");
+    } catch (err) {
+      console.error(err);
+      setError("Erro ao salvar serviço. Verifique sua conexão e tente novamente.");
+    } finally {
+      setSending(false);
     }
-
-    setServico("");
-    setFotoNome("");
-    setFotoUrl("");
-    setValor("");
-    setActiveView("history");
   };
 
   const handleDelete = async (id: string) => {
@@ -369,7 +392,14 @@ export default function TelaContratado() {
                     />
                   </label>
                 </div>
-                {fotoNome && (
+                {fotoUrl && (
+                  <img
+                    src={fotoUrl}
+                    alt={fotoNome}
+                    className="mt-2 h-24 w-auto rounded-xl object-cover border border-white/10"
+                  />
+                )}
+                {fotoNome && !fotoUrl && (
                   <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/70">
                     Arquivo: {fotoNome}
                   </p>
@@ -400,9 +430,10 @@ export default function TelaContratado() {
               <button
                 type="button"
                 onClick={handleEnviar}
-                className="inline-flex w-full items-center justify-center rounded-2xl sm:rounded-3xl bg-white px-3 sm:px-5 py-2 sm:py-3 text-sm sm:text-base font-semibold text-black transition hover:bg-white/90"
+                disabled={sending}
+                className="inline-flex w-full items-center justify-center rounded-2xl sm:rounded-3xl bg-white px-3 sm:px-5 py-2 sm:py-3 text-sm sm:text-base font-semibold text-black transition hover:bg-white/90 disabled:opacity-60"
               >
-                Enviar
+                {sending ? "Enviando..." : "Enviar"}
               </button>
             </div>
           </section>
