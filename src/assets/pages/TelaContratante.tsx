@@ -11,6 +11,7 @@ export default function TelaContratante() {
   const [allServices, setAllServices] = useState<ServiceItem[]>([])
   const [pixModalEmail, setPixModalEmail] = useState<string | null>(null)
   const [pixModalKey, setPixModalKey] = useState<string>('')
+  const [pixCopied, setPixCopied] = useState(false)
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null)
   const [imageModalName, setImageModalName] = useState<string>('')
@@ -216,7 +217,21 @@ export default function TelaContratante() {
                 ×
               </button>
               <h3 className="mb-4 text-lg font-semibold">Chave PIX para pagamento</h3>
-              <p className="mb-4 break-all rounded-lg bg-gray-100 p-3 text-sm font-mono">{pixModalKey}</p>
+              <div className="mb-4 flex items-center gap-2 rounded-lg bg-gray-100 p-3">
+                <p className="flex-1 break-all text-sm font-mono">{pixModalKey}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(pixModalKey).then(() => {
+                      setPixCopied(true)
+                      setTimeout(() => setPixCopied(false), 2000)
+                    })
+                  }}
+                  className="shrink-0 rounded-xl bg-gray-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                >
+                  {pixCopied ? '✓ Copiado!' : 'Copiar'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={handleConfirmPayment}
