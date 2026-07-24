@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import {
   getUserByEmail,
-  getServicesForContractor,
+  subscribeToContractorServices,
   saveServiceItem,
   updateServiceStatus,
   updateUserPixKey,
@@ -31,21 +31,22 @@ export default function TelaContratado() {
     const currentEmail = window.localStorage.getItem("currentUserEmail") || "";
     if (!currentEmail) return;
 
-    const loadUserAndServices = async () => {
-      const currentUser = await getUserByEmail(currentEmail);
-      if (currentUser) {
-        setNome(currentUser.nome);
-        setPixKey(currentUser.pixKey || "");
-      }
+    // Load user info once
+    getUserByEmail(currentEmail)
+      .then((currentUser) => {
+        if (currentUser) {
+          setNome(currentUser.nome);
+          setPixKey(currentUser.pixKey || "");
+        }
+      })
+      .catch(() => setNome("Cliente"));
 
-      const contractorServices = await getServicesForContractor(currentEmail);
+    // Subscribe to real-time updates — reflects changes from any device instantly
+    const unsubscribe = subscribeToContractorServices(currentEmail, (contractorServices) => {
       setServices(contractorServices);
-    };
-
-    loadUserAndServices().catch(() => {
-      setNome("Cliente");
-      setServices([]);
     });
+
+    return () => unsubscribe();
   }, []);
 
   const handleFotoChange = (event: ChangeEvent<HTMLInputElement>) => {

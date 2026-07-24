@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
-  getAllContractorServices,
   getUserByEmail,
   updateServiceStatus,
+  subscribeToAllServices,
   type ServiceItem,
 } from '../../firebase'
 
@@ -19,20 +19,17 @@ export default function TelaContratante() {
     const currentEmail = window.localStorage.getItem('currentUserEmail') || ''
     if (!currentEmail) return
 
-    const loadData = async () => {
-      const currentUser = await getUserByEmail(currentEmail)
-      if (currentUser) {
-        setNome(currentUser.nome)
-      }
+    // Load user name once
+    getUserByEmail(currentEmail)
+      .then((currentUser) => { if (currentUser) setNome(currentUser.nome) })
+      .catch(() => setNome('Cliente'))
 
-      const services = await getAllContractorServices()
+    // Subscribe to real-time updates — fires on every add/edit/delete from any device
+    const unsubscribe = subscribeToAllServices((services) => {
       setAllServices(services)
-    }
-
-    loadData().catch(() => {
-      setNome('Cliente')
-      setAllServices([])
     })
+
+    return () => unsubscribe()
   }, [])
 
   const handlePayAllContractor = async (contractorEmail: string) => {

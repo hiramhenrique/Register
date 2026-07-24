@@ -6,10 +6,12 @@ import {
     getDoc,
     getDocs,
     getFirestore,
+    onSnapshot,
     query,
     setDoc,
     updateDoc,
     where,
+    type Unsubscribe,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -35,6 +37,52 @@ if (isFirebaseConfigured) {
     servicesCollection = collection(db, 'services')
 } else {
     console.warn('Firebase não está configurado. Usando fallback localStorage para desenvolvimento.')
+}
+
+/**
+ * Subscribe to real-time updates for all services.
+ * Returns an unsubscribe function to stop listening.
+ * Falls back to a single fetch + empty listener when Firebase is not configured.
+ */
+export function subscribeToAllServices(
+    callback: (services: ServiceItem[]) => void,
+): Unsubscribe {
+    if (!isFirebaseConfigured || !servicesCollection) {
+        // Fallback: one-time read, no real-time
+        getAllContractorServices().then(callback).catch(() => callback([]))
+        return () => {}
+    }
+    return onSnapshot(servicesCollection, (snapshot) => {
+        const services = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
+        }))
+        callback(services)
+    })
+}
+
+/**
+ * Subscribe to real-time updates for services belonging to a specific contractor.
+ * Returns an unsubscribe function to stop listening.
+ * Falls back to a single fetch + empty listener when Firebase is not configured.
+ */
+export function subscribeToContractorServices(
+    email: string,
+    callback: (services: ServiceItem[]) => void,
+): Unsubscribe {
+    if (!isFirebaseConfigured || !servicesCollection) {
+        // Fallback: one-time read, no real-time
+        getServicesForContractor(email).then(callback).catch(() => callback([]))
+        return () => {}
+    }
+    const q = query(servicesCollection, where('emailContratado', '==', email))
+    return onSnapshot(q, (snapshot) => {
+        const services = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
+        }))
+        callback(services)
+    })
 }
 
 export type User = {
