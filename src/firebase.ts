@@ -15,75 +15,18 @@ import {
 } from 'firebase/firestore'
 
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
+    apiKey: 'AIzaSyA-XeKQMYFJEunJ_5SfW4JUQs1RxktvQa8',
+    authDomain: 'comissoes-5a956.firebaseapp.com',
+    projectId: 'comissoes-5a956',
+    storageBucket: 'comissoes-5a956.firebasestorage.app',
+    messagingSenderId: '380142535161',
+    appId: '1:380142535161:web:9c20919c7c135215b33d28',
 }
 
-const isFirebaseConfigured = Object.values(firebaseConfig).every(
-    (value) => typeof value === 'string' && value.trim() !== '',
-)
-
-let usersCollection: ReturnType<typeof collection> | null = null
-let servicesCollection: ReturnType<typeof collection> | null = null
-
-if (isFirebaseConfigured) {
-    const app = initializeApp(firebaseConfig)
-    const db = getFirestore(app)
-    usersCollection = collection(db, 'users')
-    servicesCollection = collection(db, 'services')
-} else {
-    console.warn('Firebase não está configurado. Usando fallback localStorage para desenvolvimento.')
-}
-
-/**
- * Subscribe to real-time updates for all services.
- * Returns an unsubscribe function to stop listening.
- * Falls back to a single fetch + empty listener when Firebase is not configured.
- */
-export function subscribeToAllServices(
-    callback: (services: ServiceItem[]) => void,
-): Unsubscribe {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        // Fallback: one-time read, no real-time
-        getAllContractorServices().then(callback).catch(() => callback([]))
-        return () => {}
-    }
-    return onSnapshot(servicesCollection, (snapshot) => {
-        const services = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
-        }))
-        callback(services)
-    })
-}
-
-/**
- * Subscribe to real-time updates for services belonging to a specific contractor.
- * Returns an unsubscribe function to stop listening.
- * Falls back to a single fetch + empty listener when Firebase is not configured.
- */
-export function subscribeToContractorServices(
-    email: string,
-    callback: (services: ServiceItem[]) => void,
-): Unsubscribe {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        // Fallback: one-time read, no real-time
-        getServicesForContractor(email).then(callback).catch(() => callback([]))
-        return () => {}
-    }
-    const q = query(servicesCollection, where('emailContratado', '==', email))
-    return onSnapshot(q, (snapshot) => {
-        const services = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
-        }))
-        callback(services)
-    })
-}
+const app = initializeApp(firebaseConfig)
+const db = getFirestore(app)
+const usersCollection = collection(db, 'users')
+const servicesCollection = collection(db, 'services')
 
 export type User = {
     nome: string
@@ -107,57 +50,34 @@ export type ServiceItem = {
     emailContratado?: string
 }
 
-function readLocalUsers(): User[] {
-    const stored = window.localStorage.getItem('cadastroUsers')
-    if (!stored) return []
-    try {
-        return JSON.parse(stored) as User[]
-    } catch {
-        return []
-    }
+export function subscribeToAllServices(
+    callback: (services: ServiceItem[]) => void,
+): Unsubscribe {
+    return onSnapshot(servicesCollection, (snapshot) => {
+        const services = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
+        }))
+        callback(services)
+    })
 }
 
-function saveLocalUsers(users: User[]) {
-    window.localStorage.setItem('cadastroUsers', JSON.stringify(users))
-}
-
-function readLocalServices(email: string): ServiceItem[] {
-    const stored = window.localStorage.getItem(`serviceHistory_${email}`)
-    if (!stored) return []
-    try {
-        return JSON.parse(stored) as ServiceItem[]
-    } catch {
-        return []
-    }
-}
-
-function saveLocalServices(email: string, services: ServiceItem[]) {
-    try {
-        window.localStorage.setItem(`serviceHistory_${email}`, JSON.stringify(services))
-    } catch (e) {
-        if (e instanceof Error && e.message.includes('QuotaExceededError')) {
-            console.error('localStorage cheio! Remova imagens antigas ou aumente o espaço disponível.')
-            throw new Error('Espaço insuficiente. Remova imagens ou serviços antigos.')
-        }
-        throw e
-    }
-}
-
-function getLocalServiceById(id: string): { service: ServiceItem | null; contractorEmail: string | null } {
-    const users = readLocalUsers()
-    for (const user of users.filter((u) => u.tipo === 'contratado')) {
-        const services = readLocalServices(user.email)
-        const found = services.find((service) => service.id === id)
-        if (found) return { service: found, contractorEmail: user.email }
-    }
-    return { service: null, contractorEmail: null }
+export function subscribeToContractorServices(
+    email: string,
+    callback: (services: ServiceItem[]) => void,
+): Unsubscribe {
+    const q = query(servicesCollection, where('emailContratado', '==', email))
+    return onSnapshot(q, (snapshot) => {
+        const services = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<ServiceItem, 'id'>),
+        }))
+        callback(services)
+    })
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
     if (!email) return null
-    if (!isFirebaseConfigured || !usersCollection) {
-        return readLocalUsers().find((user) => user.email === email) ?? null
-    }
     const docRef = doc(usersCollection, email)
     const snapshot = await getDoc(docRef)
     return snapshot.exists() ? (snapshot.data() as User) : null
@@ -170,111 +90,38 @@ export async function getUserByEmailAndPassword(email: string, senha: string): P
 }
 
 export async function createUser(user: User): Promise<void> {
-    if (!isFirebaseConfigured || !usersCollection) {
-        const users = readLocalUsers()
-        saveLocalUsers([...users, user])
-        return
-    }
     await setDoc(doc(usersCollection, user.email), user)
 }
 
 export async function updateUserPixKey(email: string, pixKey: string): Promise<void> {
-    if (!isFirebaseConfigured || !usersCollection) {
-        const users = readLocalUsers().map((user) => (user.email === email ? { ...user, pixKey } : user))
-        saveLocalUsers(users)
-        return
-    }
-    const userRef = doc(usersCollection, email)
-    await updateDoc(userRef, { pixKey })
+    await updateDoc(doc(usersCollection, email), { pixKey })
 }
 
 export async function getServicesForContractor(email: string): Promise<ServiceItem[]> {
     if (!email) return []
-    if (!isFirebaseConfigured || !servicesCollection) {
-        return readLocalServices(email)
-    }
     const q = query(servicesCollection, where('emailContratado', '==', email))
     const snapshot = await getDocs(q)
     return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<ServiceItem, 'id'>) }))
 }
 
-export async function getAllContractorServices(): Promise<ServiceItem[]> {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        const users = readLocalUsers().filter((user) => user.tipo === 'contratado')
-        const services: ServiceItem[] = []
-        users.forEach((contractor) => {
-            readLocalServices(contractor.email).forEach((service) => {
-                services.push({ ...service, nomeContratado: contractor.nome, emailContratado: contractor.email })
-            })
-        })
-        return services
-    }
-    const snapshot = await getDocs(servicesCollection)
-    return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<ServiceItem, 'id'>) }))
-}
-
 export async function saveServiceItem(service: Omit<ServiceItem, 'id'> & { id?: string }): Promise<string> {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        const contractorEmail = service.emailContratado || ''
-        const services = readLocalServices(contractorEmail)
-        const generateUniqueId = () => {
-            let id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-            // Garante que o ID é único mesmo com collisions de timestamp
-            while (services.some((s) => s.id === id)) {
-                id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-            }
-            return id
-        }
-        const id = service.id || generateUniqueId()
-        const updated = services.filter((s) => s.id !== id)
-        saveLocalServices(contractorEmail, [{ ...service, id }, ...updated])
-        return id
-    }
-
     if (service.id) {
-        const serviceRef = doc(servicesCollection, service.id)
-        await setDoc(serviceRef, service)
+        await setDoc(doc(servicesCollection, service.id), service)
         return service.id
     }
-
-    const newServiceRef = doc(servicesCollection)
-    await setDoc(newServiceRef, { ...service, status: service.status || 'aberto' })
-    return newServiceRef.id
+    const newRef = doc(servicesCollection)
+    await setDoc(newRef, { ...service, status: service.status || 'aberto' })
+    return newRef.id
 }
 
 export async function updateServiceStatus(id: string, status: 'aberto' | 'pago'): Promise<void> {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        const { service, contractorEmail } = getLocalServiceById(id)
-        if (!service || !contractorEmail) return
-        const updatedServices = readLocalServices(contractorEmail).map((s) => (s.id === id ? { ...s, status } : s))
-        saveLocalServices(contractorEmail, updatedServices)
-        return
-    }
-    const serviceRef = doc(servicesCollection, id)
-    await updateDoc(serviceRef, { status })
+    await updateDoc(doc(servicesCollection, id), { status })
 }
 
 export async function deleteServiceItem(id: string): Promise<void> {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        const { contractorEmail } = getLocalServiceById(id)
-        if (!contractorEmail) return
-        const updatedServices = readLocalServices(contractorEmail).filter((service) => service.id !== id)
-        saveLocalServices(contractorEmail, updatedServices)
-        return
-    }
     await deleteDoc(doc(servicesCollection, id))
 }
 
 export async function removeServicePhoto(id: string): Promise<void> {
-    if (!isFirebaseConfigured || !servicesCollection) {
-        const { service, contractorEmail } = getLocalServiceById(id)
-        if (!service || !contractorEmail) return
-        const updatedServices = readLocalServices(contractorEmail).map((s) =>
-            s.id === id ? { ...s, fotoUrl: '', fotoNome: 'Sem foto' } : s
-        )
-        saveLocalServices(contractorEmail, updatedServices)
-        return
-    }
-    const serviceRef = doc(servicesCollection, id)
-    await updateDoc(serviceRef, { fotoUrl: '', fotoNome: 'Sem foto' })
+    await updateDoc(doc(servicesCollection, id), { fotoUrl: '', fotoNome: 'Sem foto' })
 }
