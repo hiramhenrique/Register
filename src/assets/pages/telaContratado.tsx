@@ -337,19 +337,38 @@ export default function TelaContratado() {
               </div>
 
               <div>
-                <label
-                  className="mb-1 sm:mb-2 block text-xs sm:text-sm font-medium text-white/80"
-                  htmlFor="foto"
-                >
+                <label className="mb-1 sm:mb-2 block text-xs sm:text-sm font-medium text-white/80">
                   Foto
                 </label>
-                <input
-                  id="foto"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFotoChange}
-                  className="w-full rounded-2xl sm:rounded-3xl border border-white/10 bg-black/40 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-white outline-none transition file:mr-2 sm:file:mr-4 file:rounded-full file:border-0 file:bg-white/10 file:px-2 sm:file:px-4 file:py-1 sm:file:py-2 file:text-xs sm:file:text-sm file:text-white file:shadow-sm file:hover:bg-white/20"
-                />
+                <div className="flex gap-2">
+                  {/* Botão Galeria */}
+                  <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs sm:text-sm text-white transition hover:bg-white/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                    Galeria
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFotoChange}
+                      className="sr-only"
+                    />
+                  </label>
+                  {/* Botão Câmera */}
+                  <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs sm:text-sm text-white transition hover:bg-white/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586A2 2 0 0113 4.586L12.414 4h-4.828L7 4.586A2 2 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                    Câmera
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFotoChange}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
                 {fotoNome && (
                   <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/70">
                     Arquivo: {fotoNome}
