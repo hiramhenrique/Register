@@ -127,7 +127,7 @@ export default function TelaContratante() {
             <div className="space-y-6">
               {(() => {
                 const sortedServices = [...allServices].sort(
-                  (a, b) => getServiceTimestamp(a) - getServiceTimestamp(b),
+                  (a, b) => getServiceTimestamp(b) - getServiceTimestamp(a),
                 )
 
                 // Agrupar por contratado

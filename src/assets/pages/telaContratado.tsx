@@ -520,7 +520,7 @@ export default function TelaContratado() {
               <div className="space-y-6">
                 {(() => {
                   const sortedServices = [...services].sort(
-                    (a, b) => getServiceTimestamp(a) - getServiceTimestamp(b),
+                    (a, b) => getServiceTimestamp(b) - getServiceTimestamp(a),
                   );
 
                   // Agrupar por data (pt-BR)
