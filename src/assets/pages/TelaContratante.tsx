@@ -5,6 +5,11 @@ import {
   subscribeToAllServices,
   type ServiceItem,
 } from '../../firebase'
+import {
+  formatServiceDateTime,
+  formatServiceDay,
+  getServiceTimestamp,
+} from '../../serviceDates'
 
 export default function TelaContratante() {
   const [nome, setNome] = useState('Cliente')
@@ -121,9 +126,13 @@ export default function TelaContratante() {
           ) : (
             <div className="space-y-6">
               {(() => {
+                const sortedServices = [...allServices].sort(
+                  (a, b) => getServiceTimestamp(a) - getServiceTimestamp(b),
+                )
+
                 // Agrupar por contratado
                 const grouped: Record<string, ServiceItem[]> = {}
-                allServices.forEach((service) => {
+                sortedServices.forEach((service) => {
                   const key = service.nomeContratado || 'Desconhecido'
                   if (!grouped[key]) grouped[key] = []
                   grouped[key].push(service)
@@ -156,45 +165,66 @@ export default function TelaContratante() {
                         )}
                       </div>
                       <div className="space-y-3">
-                        {services.map((service) => (
-                          <div key={service.id} className="rounded-3xl border border-white/10 bg-black/40 p-4">
-                            <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex-1">
-                                <p className="font-semibold text-white">{service.servico}</p>
-                                <span className="text-sm text-white/60">{service.createdAt}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm text-white/70">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((service.valor || '').replace(/[R$\s.]/g, '').replace(',', '.')))}</p>
-                                <span className={`rounded-full px-3 py-1 text-sm font-semibold ${service.status === 'aberto' ? 'bg-yellow-400 text-black' : 'bg-green-500 text-white'}`}>
-                                  {service.status === 'aberto' ? 'Aberto' : 'Pago'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              {service.fotoUrl ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openImageModal(service.fotoUrl, service.fotoNome)}
-                                  className="rounded-3xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-                                >
-                                  Visualizar imagem
-                                </button>
-                              ) : (
-                                <span className="text-sm text-white/50">Sem imagem</span>
-                              )}
+                        {(() => {
+                          const groupedByDay: Record<string, ServiceItem[]> = {}
 
-                              {service.status === 'pago' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRevertToOpen(service.id)}
-                                  className="rounded-3xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-                                >
-                                  Alterar status
-                                </button>
-                              )}
+                          services.forEach((service) => {
+                            const dayKey = formatServiceDay(service)
+                            if (!groupedByDay[dayKey]) groupedByDay[dayKey] = []
+                            groupedByDay[dayKey].push(service)
+                          })
+
+                          return Object.entries(groupedByDay).map(([dayKey, dayServices]) => (
+                            <div key={`${contractorName}_${dayKey}`} className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+                              <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-2">
+                                <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">{dayKey}</h4>
+                                <span className="text-xs text-white/50">{dayServices.length} registro{dayServices.length > 1 ? 's' : ''}</span>
+                              </div>
+
+                              <div className="space-y-3">
+                                {dayServices.map((service) => (
+                                  <div key={service.id} className="rounded-3xl border border-white/10 bg-black/40 p-4">
+                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                                      <div className="flex-1">
+                                        <p className="font-semibold text-white">{service.servico}</p>
+                                        <span className="text-sm text-white/60">{formatServiceDateTime(service)}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm text-white/70">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((service.valor || '').replace(/[R$\s.]/g, '').replace(',', '.')))}</p>
+                                        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${service.status === 'aberto' ? 'bg-yellow-400 text-black' : 'bg-green-500 text-white'}`}>
+                                          {service.status === 'aberto' ? 'Aberto' : 'Pago'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      {service.fotoUrl ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => openImageModal(service.fotoUrl, service.fotoNome)}
+                                          className="rounded-3xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                                        >
+                                          Visualizar imagem
+                                        </button>
+                                      ) : (
+                                        <span className="text-sm text-white/50">Sem imagem</span>
+                                      )}
+
+                                      {service.status === 'pago' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRevertToOpen(service.id)}
+                                          className="rounded-3xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                                        >
+                                          Alterar status
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        })()}
                       </div>
                     </div>
                   )

@@ -9,6 +9,11 @@ import {
   removeServicePhoto,
   type ServiceItem,
 } from "../../firebase";
+import {
+  formatServiceDateTime,
+  formatServiceDay,
+  getServiceTimestamp,
+} from "../../serviceDates";
 
 // Comprime uma imagem para base64 com largura máxima e qualidade reduzida
 function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
@@ -514,38 +519,19 @@ export default function TelaContratado() {
             ) : (
               <div className="space-y-6">
                 {(() => {
+                  const sortedServices = [...services].sort(
+                    (a, b) => getServiceTimestamp(a) - getServiceTimestamp(b),
+                  );
+
                   // Agrupar por data (pt-BR)
                   const groups: Record<string, ServiceItem[]> = {};
-                  services.forEach((it) => {
-                    let dateKey = "—";
-                    try {
-                      if (it.createdAtISO)
-                        dateKey = new Date(it.createdAtISO).toLocaleDateString(
-                          "pt-BR",
-                        );
-                      else
-                        dateKey = new Date(it.createdAt).toLocaleDateString(
-                          "pt-BR",
-                        );
-                    } catch {
-                      dateKey = it.createdAt.split(" ")[0] || it.createdAt;
-                    }
+                  sortedServices.forEach((it) => {
+                    const dateKey = formatServiceDay(it);
                     if (!groups[dateKey]) groups[dateKey] = [];
                     groups[dateKey].push(it);
                   });
-                  const sortedKeys = Object.keys(groups).sort((a, b) => {
-                    // tentar ordenar por data
-                    const da = new Date(
-                      groups[a][0].createdAtISO || groups[a][0].createdAt,
-                    ).getTime();
-                    const db = new Date(
-                      groups[b][0].createdAtISO || groups[b][0].createdAt,
-                    ).getTime();
-                    return db - da;
-                  });
 
-                  return sortedKeys.map((dateKey) => {
-                    const items = groups[dateKey];
+                  return Object.entries(groups).map(([dateKey, items]) => {
                     const dayTotal = items.reduce((acc, it) => {
                       const num =
                         Number(
@@ -582,7 +568,7 @@ export default function TelaContratado() {
                                     {item.servico}
                                   </p>
                                   <span className="text-xs sm:text-sm text-white/60">
-                                    {item.createdAt}
+                                    {formatServiceDateTime(item)}
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
